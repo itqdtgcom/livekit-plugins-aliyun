@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: livekit-plugins-aliyun
+Version: 1.0.1
+Summary: LiveKit Agent Plugins for Alibaba Cloud
+Author-email: itqdtgcom <it@qdtg.com>
+Keywords: audio,livekit,realtime,video,webrtc
+Classifier: Intended Audience :: Developers
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Topic :: Multimedia :: Sound/Audio
+Classifier: Topic :: Multimedia :: Video
+Classifier: Topic :: Scientific/Engineering :: Artificial Intelligence
+Requires-Python: >=3.9
+Requires-Dist: livekit-agents>=1.2.9
+Requires-Dist: osc-data>=0.2.2
+Description-Content-Type: text/markdown
