@@ -81,6 +81,7 @@ class STTOptions:
                     "inverse_text_normalization_enabled": self.inverse_text_normalization_enabled,
                     "max_sentence_silence": self.max_sentence_silence,
                     "heartbeat": True,
+                    "diarization_enabled": True,
                     "language_hints": [self.language],
                 },
                 "input": {},
@@ -295,6 +296,7 @@ class SpeechStream(stt.SpeechStream):
             start_time = output["begin_time"]
             end_time = output["end_time"]
             text = output["text"]
+            speaker_id = output.get("speaker_id")
             if not self._speaking:
                 start_event = stt.SpeechEvent(type=stt.SpeechEventType.START_OF_SPEECH)
                 self._event_ch.send_nowait(start_event)
@@ -307,6 +309,7 @@ class SpeechStream(stt.SpeechStream):
                         text=text,
                         start_time=start_time,
                         end_time=end_time,
+                        speaker_id=speaker_id,
                     )
                 ]
                 interim_event = stt.SpeechEvent(
@@ -322,6 +325,7 @@ class SpeechStream(stt.SpeechStream):
                         text=text,
                         start_time=start_time,
                         end_time=end_time,
+                        speaker_id=speaker_id,
                     )
                 ]
                 interim_event = stt.SpeechEvent(
@@ -341,6 +345,7 @@ class SpeechStream(stt.SpeechStream):
                         "text": text,
                         "start_time": start_time,
                         "end_time": end_time,
+                        "speaker_id": speaker_id,
                     },
                 )
 
@@ -356,5 +361,6 @@ def live_transcription_to_speech_data(
             end_time=data["end_time"],
             confidence=0.0,
             text=data["text"],
+            speaker_id=data["speaker_id"],
         )
     ]
