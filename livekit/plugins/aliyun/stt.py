@@ -82,7 +82,7 @@ class STTOptions:
                     "max_sentence_silence": self.max_sentence_silence,
                     "heartbeat": True,
                     "diarization_enabled": True,
-                    "language_hints": [self.language],
+                    "language_hints": self.language.split(","),
                 },
                 "input": {},
             },
