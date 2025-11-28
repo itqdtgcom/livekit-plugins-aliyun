@@ -122,7 +122,7 @@ class STT(stt.STT):
     ) -> None:
         super().__init__(
             capabilities=stt.STTCapabilities(
-                streaming=True, interim_results=interim_results
+                streaming=True, interim_results=interim_results, diarization=True
             )
         )
         api_key = api_key or os.environ.get("DASHSCOPE_API_KEY")
@@ -297,6 +297,7 @@ class SpeechStream(stt.SpeechStream):
             end_time = output["end_time"]
             text = output["text"]
             speaker_id = output.get("speaker_id")
+            language = (self._opts.language or "").split(",")[0]
             if not self._speaking:
                 start_event = stt.SpeechEvent(type=stt.SpeechEventType.START_OF_SPEECH)
                 self._event_ch.send_nowait(start_event)
@@ -305,7 +306,7 @@ class SpeechStream(stt.SpeechStream):
             if text and not is_sentence_end:
                 alternatives = [
                     stt.SpeechData(
-                        language=self._opts.language,
+                        language=language,
                         text=text,
                         start_time=start_time,
                         end_time=end_time,
@@ -321,7 +322,7 @@ class SpeechStream(stt.SpeechStream):
             if text and is_sentence_end:
                 alternatives = [
                     stt.SpeechData(
-                        language=self._opts.language,
+                        language=language,
                         text=text,
                         start_time=start_time,
                         end_time=end_time,
