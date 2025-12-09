@@ -188,19 +188,45 @@ class SynthesizeStream(tts.SynthesizeStream):
         )
 
         async def _send_task(sentence: str, ws: aiohttp.ClientWebSocketResponse):
-            run_task_params = self._opts.get_run_task_params()
-            await ws.send_json(run_task_params)
-            continue_task_params = self._opts.get_continue_task_params(text=sentence)
-            await ws.send_json(continue_task_params)
-            finish_task_params = self._opts.get_finish_task_params()
-            await ws.send_json(finish_task_params)
+            send_timeout = self._conn_options.timeout or 20.0
+            try:
+                if ws.closed:
+                    logger.warning("WebSocket connection is closed before sending")
+                    return
+                run_task_params = self._opts.get_run_task_params()
+                await asyncio.wait_for(ws.send_json(run_task_params), timeout=send_timeout)
+                continue_task_params = self._opts.get_continue_task_params(text=sentence)
+                await asyncio.wait_for(ws.send_json(continue_task_params), timeout=send_timeout)
+                finish_task_params = self._opts.get_finish_task_params()
+                await asyncio.wait_for(ws.send_json(finish_task_params), timeout=send_timeout)
+            except asyncio.TimeoutError:
+                logger.error(
+                    "TTS send timeout",
+                    extra={"timeout": send_timeout, "sentence": sentence},
+                )
+                raise
+            except Exception as e:
+                logger.error(f"Error while sending TTS request: {e}")
+                raise
 
         async def _recv_task(ws: aiohttp.ClientWebSocketResponse):
             is_first_response = True
             start_time = time.perf_counter()
+            # 读取超时（Interval Timeout）：如果 10 秒内连一个数据包都没收到，认为连接假死
+            read_timeout = 10.0
             while True:
                 try:
-                    msg = await ws.receive()
+                    if ws.closed:
+                        logger.warning("WebSocket connection is closed")
+                        break
+                    msg = await asyncio.wait_for(ws.receive(), timeout=read_timeout)
+                except asyncio.TimeoutError:
+                    # 读取超时：长时间（10秒）完全收不到任何数据，可能是连接假死
+                    logger.error(
+                        "TTS read timeout (connection may be dead), closing connection",
+                        extra={"timeout": read_timeout},
+                    )
+                    break
                 except Exception as e:
                     logger.warning(f"Error while receiving bytes: {e}")
                     break
@@ -224,6 +250,12 @@ class SynthesizeStream(tts.SynthesizeStream):
                             if event == "task-failed":
                                 logger.error(f"tts task failed: {msg_json}")
                                 break
+                elif msg.type == aiohttp.WSMsgType.ERROR:
+                    logger.error(f"WebSocket error: {msg.data}")
+                    break
+                elif msg.type == aiohttp.WSMsgType.CLOSE:
+                    logger.warning("WebSocket connection closed by server")
+                    break
 
         splitter = TextStreamSentencizer(remove_emoji=True)
         is_first_sentence = True
@@ -243,16 +275,27 @@ class SynthesizeStream(tts.SynthesizeStream):
                     is_first_sentence = False
                 logger.info("tts start", extra={"sentence": sentence})
                 emitter.start_segment(segment_id=utils.shortuuid())
-                async with self._tts._pool.connection(
-                    timeout=self._conn_options.timeout
-                ) as ws:
-                    assert not ws.closed, "WebSocket connection is closed"
-                    tasks = [
-                        asyncio.create_task(_send_task(sentence=sentence, ws=ws)),
-                        asyncio.create_task(_recv_task(ws=ws)),
-                    ]
-                    await asyncio.gather(*tasks)
+                tasks = []
+                try:
+                    async with self._tts._pool.connection(
+                        timeout=self._conn_options.timeout
+                    ) as ws:
+                        assert not ws.closed, "WebSocket connection is closed"
+                        tasks = [
+                            asyncio.create_task(_send_task(sentence=sentence, ws=ws)),
+                            asyncio.create_task(_recv_task(ws=ws)),
+                        ]
+                        # 超时控制只在两个地方：
+                        # 1. 连接超时（在 connection() 中处理）
+                        # 2. 首次响应超时（在 _recv_task 中处理，如果一直没有响应）
+                        await asyncio.gather(*tasks, return_exceptions=True)
+                except Exception as e:
+                    logger.error(f"TTS error for sentence '{sentence}': {e}")
+                finally:
+                    # 确保任务被正确取消和清理
+                    if tasks:
+                        await utils.aio.gracefully_cancel(*tasks)
                     emitter.end_segment()
                     logger.info("tts end", extra={"sentence": sentence})
-                    self._pushed_text = self._pushed_text.replace(sentence, "")
-                    await utils.aio.gracefully_cancel(*tasks)
+                    if hasattr(self, "_pushed_text"):
+                        self._pushed_text = self._pushed_text.replace(sentence, "")

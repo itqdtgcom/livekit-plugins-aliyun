@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: livekit-plugins-aliyun
-Version: 1.0.2
+Version: 1.0.3
 Summary: LiveKit Agent Plugins for Alibaba Cloud
 Author-email: itqdtgcom <it@qdtg.com>
 Keywords: audio,livekit,realtime,video,webrtc
