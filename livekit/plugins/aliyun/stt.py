@@ -238,8 +238,24 @@ class SpeechStream(stt.SpeechStream):
         @utils.log_exceptions(logger=logger)
         async def recv_task(ws: aiohttp.ClientWebSocketResponse):
             nonlocal closing_ws
+            # 读取超时（Interval Timeout）：如果 10 秒内连一个数据包都没收到，认为连接假死
+            read_timeout = 10.0
             while True:
-                msg = await ws.receive()
+                try:
+                    if ws.closed:
+                        logger.warning("WebSocket connection is closed")
+                        break
+                    msg = await asyncio.wait_for(ws.receive(), timeout=read_timeout)
+                except asyncio.TimeoutError:
+                    logger.error(
+                        "STT read timeout (connection may be dead), closing connection",
+                        extra={"timeout": read_timeout},
+                    )
+                    break
+                except Exception as e:
+                    logger.warning(f"Error while receiving message: {e}")
+                    break
+
                 if msg.type in (
                     aiohttp.WSMsgType.CLOSED,
                     aiohttp.WSMsgType.CLOSE,
