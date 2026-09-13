@@ -1,6 +1,6 @@
 from __future__ import annotations
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import List
 import json
 
@@ -19,6 +19,7 @@ from livekit.agents.types import (
     NOT_GIVEN,
     NotGivenOr,
 )
+from livekit.agents.utils import is_given
 from .log import logger
 
 
@@ -164,12 +165,16 @@ class STT(stt.STT):
     def stream(
         self,
         *,
-        language: str | None = None,
+        language: NotGivenOr[str] = NOT_GIVEN,
         conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
-    ) -> "SpeechStream":
+    ) -> SpeechStream:
+        # 对齐 livekit.agents.stt.STT.stream；有 language 时只覆盖本流。
+        opts = self._opts
+        if is_given(language):
+            opts = replace(self._opts, language=language)
         return SpeechStream(
             stt=self,
-            opts=self._opts,
+            opts=opts,
             conn_options=conn_options,
             http_session=self._ensure_session(),
         )

@@ -156,8 +156,11 @@ class TTS(tts.TTS):
     def synthesize(
         self,
         text: str,
-    ) -> AsyncIterable[tts.SynthesizedAudio]:
-        raise NotImplementedError
+        *,
+        conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS,
+    ) -> tts.ChunkedStream:
+        # 对齐 livekit.agents.tts.TTS.synthesize；流式厂商走基类 _synthesize_with_stream。
+        return self._synthesize_with_stream(text, conn_options=conn_options)
 
     def stream(
         self, *, conn_options: APIConnectOptions = DEFAULT_API_CONNECT_OPTIONS
